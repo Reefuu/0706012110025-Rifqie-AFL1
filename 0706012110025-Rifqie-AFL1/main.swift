@@ -15,34 +15,14 @@ var choice: String = ""
 
 // User
 var name: String = ""
-var hp = 100, mp = 50
-let max_hp = 100, max_mp = 50
-
-// items
-var potions: Int = 20
-var elixir: Int = 10
-var items = [potions, elixir]
-var item_name = ["Potions", "Elixir"]
-var item_gain = [20, 10]
-var item_desc = ["Heal \(item_gain[0])pt of your HP", "Add \(item_gain[1])pt of your MP"]
-
-// Attacks
-var magic_atk = ["Physical Attack", "Meteor", "Shield"]
-var magic_mp = [0, 15, 10]
-var magic_usage = ["No mana required", "Use \(magic_mp[1])pt of MP", "Use \(magic_mp[2])pt of MP"]
-var magic_power = [5, 50, 1]
-var magic_desc = ["Deal \(magic_power[0])pt of damage", "Deal \(magic_power[1])pt of damage", "Block enemy's attack for \(magic_power[2]) turn(s)"]
-
-// Actions (not attack)
-var other_action = ["Use \(item_name[0].dropLast()) to heal wound or \(item_name[1]) to recover MP ", "Scan enemy's vital", "Flee from battle"]
+var player: Player?
+let max_hp = 130, max_mp = 80
 
 // Enemy
-var enemy_name = ["Troll", "Golem"]
-var enemy_health = [1000, 1000]
+var troll = Monster(hp: 1000, name: "Troll", damage: 20)
+var golem = Monster(hp: 1000, name: "Golem", damage: 20)
+var enemy: Monster?
 var enemy_countdown = 1
-
-// Damage Multiplier
-var multiplier = 1
 
 // Code Start
 openScreen()
@@ -63,7 +43,7 @@ func openScreen(){
           """, terminator: " ")
     
     choice = readLine()!
-    
+            
     switch choice{
     case "":
         welcomeScreen()
@@ -80,6 +60,7 @@ func welcomeScreen(){
     if name.contains(where: { $0.isNumber}) || name.isEmpty || name.rangeOfCharacter(from: symbolsList) != nil{
         welcomeScreen()
     }else{
+        player = Player(name: name)
         journeyScreen()
     }
 }
@@ -87,9 +68,9 @@ func welcomeScreen(){
 // Journey Screen (you go back here everytime)
 func journeyScreen(){
     enemy_countdown = 1
-    multiplier = 1
+    player?.scanned = false
     print("""
-              \nNice to meet you \(name)!
+              \nNice to meet you \(player?.name ?? "")!
               
               From here, you can...
               
@@ -113,13 +94,24 @@ func journeyScreen(){
     case "h":
         healOrRecover(screen: "journey")
     case "f":
-        forestScreen()
+        setEnemy(choice: choice)
     case "m":
-        golemScreen()
+        setEnemy(choice: choice)
     case "q":
         exit(0)
     default:
         journeyScreen()
+    }
+}
+
+//Initialize the enemy you will be facing
+func setEnemy(choice: String){
+    if choice == "f"{
+        enemy = troll
+        forestScreen()
+    }else if choice == "m"{
+        enemy = golem
+        golemScreen()
     }
 }
 
@@ -146,14 +138,14 @@ func healOrRecover(screen: String){
 
 // Recover MP
 func recoverMP(screen: String){
-    if elixir == 0{
+    if player?.inventory.filter({$0 is Elixir}).count == 0{
         noRecover(screen: screen)
     }
     print("""
           
-          Your MP is \(mp).
-          You have \(elixir) \(item_name[1]).
-          
+          Your MP is \(player?.mp ?? 0).
+          You have \(player?.inventory.filter({$0 is Elixir}).count ?? 0) elixir(s).
+
           Are you sure you want to use 1 elixir to recover MP? [Y/N]
           """, terminator: " ")
     
@@ -161,9 +153,7 @@ func recoverMP(screen: String){
     
     switch choice{
     case "y":
-        mp += 15
-        elixir -= 1
-        if mp > max_mp{mp = max_mp}
+        player?.useItem(item: player!.elixir)
         recoverAgain(screen: screen)
     case "n":
         if screen == "journey"{
@@ -181,13 +171,13 @@ func recoverMP(screen: String){
 
 // Heal Wound
 func healWound(screen: String){
-    if potions == 0 {
+    if player?.inventory.filter({$0 is Potion}).count == 0 {
         noHeal(screen: screen)
     }
     print("""
           
-          Your HP is \(hp).
-          You have \(potions) \(item_name[0]).
+          Your HP is \(player?.hp ?? 0).
+          You have \(player?.inventory.filter({$0 is Potion}).count ?? 0) potion(s).
           
           Are you sure you want to use 1 potion to heal wound? [Y/N]
           """, terminator: " ")
@@ -196,9 +186,7 @@ func healWound(screen: String){
     
     switch choice{
     case "y":
-        hp += 20
-        potions -= 1
-        if hp > max_hp{hp = max_hp}
+        player?.useItem(item: player!.potion)
         healAgain(screen: screen)
     case "n":
         if screen == "journey"{
@@ -216,14 +204,14 @@ func healWound(screen: String){
 
 // Heal Again
 func healAgain(screen: String){
-    if potions == 0 {
+    if player?.inventory.filter({$0 is Potion}).count == 0 {
         noHeal(screen: screen)
     }
     print("""
           
-          Your HP is now \(hp).
-          You have \(potions) \(item_name[0].dropLast()) left.
-          
+          Your HP is now \(player?.hp ?? 0).
+          You have \(player?.inventory.filter({$0 is Potion}).count ?? 0) potion left.
+
           Still want to use 1 potion to heal wound again? [Y/N]
           """, terminator: " ")
     
@@ -231,9 +219,7 @@ func healAgain(screen: String){
     
     switch choice{
     case "y":
-        hp += 20
-        potions -= 1
-        if hp > max_hp{hp = max_hp}
+        player?.useItem(item: player!.potion)
         healAgain(screen: screen)
     case "n":
         if screen == "journey"{
@@ -250,14 +236,14 @@ func healAgain(screen: String){
 
 // Recover MP Again
 func recoverAgain(screen: String){
-    if elixir == 0 {
+    if player?.inventory.filter({$0 is Elixir}).count == 0 {
         noRecover(screen: screen)
     }
     print("""
           
-          Your MP is now \(mp).
-          You have \(elixir) \(item_name[1]) left.
-          
+          Your MP is now \(player?.mp ?? 0).
+          You have \(player?.inventory.filter({$0 is Elixir}).count ?? 0) elixir left.
+
           Still want to use 1 elixir to recover MP again? [Y/N]
           """, terminator: " ")
     
@@ -265,9 +251,7 @@ func recoverAgain(screen: String){
     
     switch choice{
     case "y":
-        mp += 15
-        elixir -= 1
-        if mp > max_mp{mp = max_mp}
+        player?.useItem(item: player!.elixir)
         recoverAgain(screen: screen)
     case "n":
         if screen == "journey"{
@@ -286,7 +270,7 @@ func recoverAgain(screen: String){
 func noHeal(screen: String){
     print("""
           
-          You don't have any potion left. Be careful of your next journey.
+          You don't have any potion left. Be careful on your next journey.
           
           Press [return] to go back:
           """, terminator: " ")
@@ -311,7 +295,7 @@ func noHeal(screen: String){
 func noRecover(screen: String){
     print("""
           
-          You don't have any elixir left. Be careful of your next journey.
+          You don't have any elixir left. Be careful on your next journey.
           
           Press [return] to go back:
           """, terminator: " ")
@@ -336,23 +320,24 @@ func noRecover(screen: String){
 func playerScreen(){
     print("""
           
-          Player name: \(name)
+          Player name: \(player?.name ?? "")
           
-          HP: \(hp)/\(max_hp)
-          MP: \(mp)/\(max_mp)
+          HP: \(player?.hp ?? 0)/\(max_hp)
+          MP: \(player?.mp ?? 0)/\(max_mp)
           
           Magic:
           """)
-    for (index, item) in magic_atk.enumerated() {
-        print("- \(item). \(magic_usage[index]). \(magic_desc[index])")
+    for item in player!.actions {
+        if item.damage >= 0{
+            print("- \(item.name). \(item.description)")
+        }
     }
     print("""
           
           Items:
           """)
-    for (index, item) in items.enumerated() {
-        print("- \(item_name[index]) x\(item). \(item_desc[index])")
-    }
+    player?.itemCount()
+    
     print("\nPress [return] to go back:", terminator: " ")
     
     choice = readLine()!
@@ -367,11 +352,14 @@ func playerScreen(){
 
 // Forest Troll Screen
 func forestScreen(){
-    if enemy_health[enemy_name.firstIndex(of: "Troll")!] <= 0{
-        killForest()
+    if enemy!.hp <= 0{
+        killEnemy()
     }
-    if hp <= 0{
+    if player!.hp <= 0{
         playerDie()
+    }
+    if player!.block{
+        player!.block = false
     }
     print("""
           
@@ -381,239 +369,210 @@ func forestScreen(){
           
           """)
     
-    enemyStats(enemy: "Troll", count: 1)
+    enemyStats(enemy: enemy!)
     
     print("""
           
           Choose your action:
           """)
-    for (index, item) in magic_atk.enumerated() {
-        print("[\(index+1)] \(item). \(magic_usage[index]). \(magic_desc[index])")
-    }
-    print()
-    for (index, item) in other_action.enumerated() {
-        print("[\(index+1+magic_atk.count)] \(item).")
+    var result = player?.actionList()
+    
+    if result == 0 {
+        forestScreen()
     }
     
-    print("\nYour choice?", terminator: " ")
-    choice = readLine()!
+    if result == -5 {
+        journeyScreen()
+    }
     
-    switch choice{
-    case "1":
-        enemy_health[enemy_name.firstIndex(of: "Troll")!] -= 5*multiplier
-        if enemy_countdown == 1{
-            enemy_countdown-=1
-            forestScreen()
+    if result == -2 {
+        print("\nYou have scanned the enemy's vital spot, you now deal 2x damage")
+    }
+    
+    if result == -3 {
+        if player?.inventory.filter({$0 is Potion}).count == 0{
+            print("\nYou wasted your turn searching for a potion")
         }else{
-            hp-=15
-            enemy_countdown = 1
-            forestScreen()
+            print("\nYou healed some of your lost health")
+            player?.useItem(item: player!.potion)
         }
-    case "2":
-        if mp < 15{
-            print("You don't have enough MP to do this action")
-            forestScreen()
+    }
+    
+    if result == -4 {
+        if player?.inventory.filter({$0 is Elixir}).count == 0{
+            print("\nYou wasted your turn searching for an elixir")
         }else{
-            enemy_health[enemy_name.firstIndex(of: "Troll")!] -= 50*multiplier
-            mp -= 15
-            if enemy_countdown == 1{
-                enemy_countdown-=1
-                forestScreen()
-            }else{
-                hp-=15
-                enemy_countdown = 1
-                forestScreen()
+            print("\nYou recovered some of your lost mana")
+            player?.useItem(item: player!.elixir)
+        }
+    }
+    
+    if enemy_countdown == 0{
+        if player!.block{
+            print("\nYou have blocked the enemy's attack.")
+        }else{
+            player!.hp -= enemy!.damage
+            if result! > 0 {
+                if player!.scanned{
+                    result? *= 2
+                }
+                print("\nYou dealt \(result!) damage to the enemy.")
+                enemy!.hp -= result!
             }
         }
-    case "3":
-        if mp < 10{
-            print("You don't have enough MP to do this action")
-            forestScreen()
-        }else{
-            mp -= 10
-            if enemy_countdown == 1{
-                enemy_countdown-=1
-                forestScreen()
-            }else{
-                enemy_countdown = 1
-                forestScreen()
-            }
-        }
-    case "4":
         if enemy_countdown == 1{
-            enemy_countdown-=1
+            enemy_countdown -= 1
         }else{
             enemy_countdown = 1
         }
-        healOrRecover(screen: "forest")
-    case "5":
-        if multiplier == 2{
-            print("You already found out about the enemy's vital spot, you can't do it again")
-        }else{
-            if enemy_countdown == 1{
-                enemy_countdown-=1
-            }else{
-                enemy_countdown = 1
-            }
-            multiplier = 2
-            print("You found out about the enemy's weak vital spot, you now deal 2x damage")
-        }
-        forestScreen()
-    case "6":
-        fleeScreen()
-    default:
         forestScreen()
     }
+    if enemy_countdown == 1{
+        enemy_countdown -= 1
+    }else{
+        enemy_countdown = 1
+    }
+
+    if result! > 0 {
+        if player!.scanned{
+            result? *= 2
+        }
+        print("\nYou dealt \(result!) damage to the enemy.")
+        enemy!.hp -= result!
+    }
+    
+    forestScreen()
 }
 
-// Killed the troll
-func killForest(){
+// Killed the enemy
+func killEnemy(){
     let gain_potion = Int.random(in: 1..<4)
     let gain_elixir = Int.random(in: 1..<4)
-    potions += gain_potion
-    elixir += gain_elixir
-    items = [potions, elixir]
-    print("\nYou killed the troll, and gained some hp back\nYou also gained \(gain_potion) Potions, and \(gain_elixir) Elixirs")
-    if hp>max_hp{
-        hp = max_hp
+    for _ in 1...gain_potion{
+        player?.gainItem(item: player!.potion)
     }
-    enemy_health[enemy_name.firstIndex(of: "Troll")!] = 1000
+    for _ in 1...gain_elixir{
+        player?.gainItem(item: player!.elixir)
+    }
+    print("\nYou killed the \(enemy!.name), and gained some hp back\nYou also gained \(gain_potion) Potions, and \(gain_elixir) Elixirs")
+    if player!.hp>max_hp{
+        player!.hp = max_hp
+    }
     journeyScreen()
 }
 
 // Mountain Golem Screen
 func golemScreen(){
-    if enemy_health[enemy_name.firstIndex(of: "Golem")!] <= 0{
-        killGolem()
+    if enemy!.hp <= 0{
+        killEnemy()
     }
-    if hp <= 0{
+    if player!.hp <= 0{
         playerDie()
+    }
+    if player!.block{
+        player!.block = false
     }
     print("""
           
-          As you make your way through the rugged mountain terrain, you can feel the chill of the wind biting at your skin.
-          Suddenly, you hear a sound that makes you freeze in your tracks. That's when you see it - a massive, snarling
-          \tGolem emerging from the shadows.
+          As you climb up the mountain, you feel a presence watching over you.
+          Suddenly, you hear the sound of loud roar from the stones. You quickly
+          \tturned around, finding a golem forming from the stones.
           
           """)
     
-    enemyStats(enemy: "Golem", count: 1)
+    enemyStats(enemy: enemy!)
     
     print("""
           
           Choose your action:
           """)
-    for (index, item) in magic_atk.enumerated() {
-        print("[\(index+1)] \(item). \(magic_usage[index]). \(magic_desc[index])")
-    }
-    print()
-    for (index, item) in other_action.enumerated() {
-        print("[\(index+1+magic_atk.count)] \(item).")
+    var result = player?.actionList()
+    
+    if result == 0 {
+        forestScreen()
     }
     
-    print("\nYour choice?", terminator: " ")
-    choice = readLine()!
+    if result == -5 {
+        journeyScreen()
+    }
     
-    switch choice{
-    case "1":
-        enemy_health[enemy_name.firstIndex(of: "Golem")!] -= 5*multiplier
-        if enemy_countdown == 1{
-            enemy_countdown-=1
-            golemScreen()
+    if result == -2 {
+        print("\nYou have scanned the enemy's vital spot, you now deal 2x damage")
+    }
+    
+    if result == -3 {
+        if player?.inventory.filter({$0 is Potion}).count == 0{
+            print("\nYou wasted your turn searching for a potion")
         }else{
-            hp-=15
-            enemy_countdown = 1
-            golemScreen()
+            print("\nYou healed some of your lost health")
+            player?.useItem(item: player!.potion)
         }
-    case "2":
-        if mp < 15{
-            print("You don't have enough MP to do this action")
-            golemScreen()
+    }
+    
+    if result == -4 {
+        if player?.inventory.filter({$0 is Elixir}).count == 0{
+            print("\nYou wasted your turn searching for an elixir")
         }else{
-            enemy_health[enemy_name.firstIndex(of: "Golem")!] -= 50*multiplier
-            mp -= 15
-            if enemy_countdown == 1{
-                enemy_countdown-=1
-                golemScreen()
-            }else{
-                hp-=15
-                enemy_countdown = 1
-                golemScreen()
+            print("\nYou recovered some of your lost mana")
+            player?.useItem(item: player!.elixir)
+        }
+    }
+    
+    if enemy_countdown == 0{
+        if player!.block{
+            print("\nYou have blocked the enemy's attack.")
+        }else{
+            player!.hp -= enemy!.damage
+            if result! > 0 {
+                if player!.scanned{
+                    result? *= 2
+                }
+                print("\nYou dealt \(result!) damage to the enemy.")
+                enemy!.hp -= result!
             }
         }
-    case "3":
-        if mp < 10{
-            print("You don't have enough MP to do this action")
-            golemScreen()
-        }else{
-            mp -= 10
-            if enemy_countdown == 1{
-                enemy_countdown-=1
-                golemScreen()
-            }else{
-                enemy_countdown = 1
-                golemScreen()
-            }        }
-    case "4":
         if enemy_countdown == 1{
-            enemy_countdown-=1
+            enemy_countdown -= 1
         }else{
             enemy_countdown = 1
         }
-        healOrRecover(screen: "golem")
-    case "5":
-        if multiplier == 2{
-            print("You already found out about the enemy's vital spot, you can't do it again")
-        }else{
-            if enemy_countdown == 1{
-                enemy_countdown-=1
-            }else{
-                enemy_countdown = 1
-            }
-            multiplier = 2
-            print("You found out about the enemy's vital spot, you now deal 2x damage")
-        }
-        golemScreen()
-    case "6":
-        fleeScreen()
-    default:
         golemScreen()
     }
-    
-}
+    if enemy_countdown == 1{
+        enemy_countdown -= 1
+    }else{
+        enemy_countdown = 1
+    }
 
-// Killed the golem
-func killGolem(){
-    let gain_potion = Int.random(in: 1..<4)
-    let gain_elixir = Int.random(in: 1..<4)
-    potions += gain_potion
-    elixir += gain_elixir
-    items = [potions, elixir]
-    print("\nYou killed the golem, and gained some hp back\nYou also gained \(gain_potion) Potions, and \(gain_elixir) Elixirs")
-    hp += 20
-    if hp>max_hp{
-        hp = max_hp
+    if result! > 0 {
+        if player!.scanned{
+            result? *= 2
+        }
+        print("\nYou dealt \(result!) damage to the enemy.")
+        enemy!.hp -= result!
     }
-    enemy_health[enemy_name.firstIndex(of: "Golem")!] = 1000
-    journeyScreen()
+    
+    golemScreen()
+    
+    
 }
 
 // Enemy Info
-func enemyStats(enemy: String, count: Int){
-    let intIndex = enemy_name.firstIndex(of: enemy)
+func enemyStats(enemy: Monster){
     print("""
-          😈 Name: \(enemy_name[intIndex!]) x\(count)
-          😈 Health: \(enemy_health[intIndex!])
+          😈 Name: \(enemy.name)
+          😈 Health: \(enemy.hp)
           """)
     if(enemy_countdown == 1){
-        print("😈 Attack: The enemy will attack for 15pt in the next turn")
+        print("😈 Attack: The enemy will attack for \(enemy.damage) in the next turn")
     }else{
-        print("😈 Attack: The enemy will attack for 15pt in this turn")
+        print("😈 Attack: The enemy will attack for \(enemy.damage) in this turn")
     }
     print("""
-          Your HP: \(hp)/\(max_hp)
-          Your MP: \(mp)/\(max_mp)
+          Your HP: \(player!.hp)/\(max_hp)
+          Your MP: \(player!.mp)/\(max_mp)
           """)
+    player?.itemCount()
 }
 
 // User Flee From Battle
